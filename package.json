@@ -18,6 +18,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "electron": "^25.0.0",
     "electron-builder": "^24.4.0"
   },

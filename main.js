@@ -17,11 +17,9 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
   
-  // Open DevTools if in dev mode
-  if (process.argv.includes('--dev')) {
-    mainWindow.webContents.openDevTools();
-  }
-
+  // Always open DevTools for debugging
+  mainWindow.webContents.openDevTools();
+  
   mainWindow.on('closed', function () {
     mainWindow = null;
   });
@@ -72,6 +70,11 @@ function createWindow() {
       submenu: [
         { role: 'reload' },
         { role: 'toggledevtools' },
+        { 
+          label: 'Open DevTools (F12)',
+          accelerator: 'F12',
+          click: () => mainWindow.webContents.openDevTools()
+        },
         { type: 'separator' },
         { role: 'resetzoom' },
         { role: 'zoomin' },
@@ -111,7 +114,7 @@ ipcMain.on('open-file-dialog', async (event) => {
 // Handle file save dialog
 ipcMain.on('save-file-dialog', async (event, originalFilename) => {
   // Set default filename to original name + '2' or fallback to 'edited.mp3'
-  const defaultFilename = originalFilename ? `${originalFilename} -  edited.mp3` : 'edited.mp3';
+  const defaultFilename = originalFilename ? `${originalFilename} - edited.mp3` : 'edited.mp3';
   
   const { canceled, filePath } = await dialog.showSaveDialog({
     title: 'Save Edited Audio',
@@ -144,5 +147,20 @@ ipcMain.handle('write-audio-file', async (event, filePath, arrayBuffer) => {
   } catch (error) {
     console.error('Error writing audio file:', error);
     return false;
+  }
+});
+
+// Handle getting file stats (for bitrate detection)
+ipcMain.handle('get-file-stats', async (event, filePath) => {
+  try {
+    const stats = fs.statSync(filePath);
+    return {
+      size: stats.size,
+      created: stats.birthtime,
+      modified: stats.mtime
+    };
+  } catch (error) {
+    console.error('Error getting file stats:', error);
+    return null;
   }
 });

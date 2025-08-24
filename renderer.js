@@ -25,6 +25,7 @@ let currentFilePath;
 let introCutTime = 0;
 let outroCutTime = null; // null means end of file
 let isPlaying = false;
+let originalBitrate = 256; // Default bitrate if we can't detect it
 
 // Initialize WaveSurfer
 function initWaveSurfer() {
@@ -117,6 +118,10 @@ async function loadAudioFile(filePath) {
     fileNameEl.textContent = filePath.split('/').pop();
     statusMessageEl.textContent = 'Loading file...';
     
+    // Get file extension
+    const fileExt = filePath.split('.').pop().toLowerCase();
+    fileFormat = fileExt;
+    
     // Load the file using WaveSurfer
     wavesurfer.load(filePath);
     
@@ -124,6 +129,39 @@ async function loadAudioFile(filePath) {
     const arrayBuffer = await ipcRenderer.invoke('read-audio-file', filePath);
     if (arrayBuffer) {
       audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      
+      // Attempt to detect bitrate for MP3 files
+      if (fileExt === 'mp3') {
+        try {
+          // Get file stats to determine file size
+          const fileStats = await ipcRenderer.invoke('get-file-stats', filePath);
+          const fileSizeInBytes = fileStats.size;
+          
+          // Estimate bitrate based on file size and duration
+          // This is a rough estimate: (file size in bits) / (duration in seconds) / 1000
+          const fileSizeInBits = fileSizeInBytes * 8;
+          const durationInSeconds = audioBuffer.duration;
+          
+          // MP3 has some overhead, so we adjust the calculation
+          // Typical MP3 overhead is about 4-5% of the file size
+          const estimatedBitrate = Math.round((fileSizeInBits * 0.95) / durationInSeconds / 1000);
+          
+          // Clamp to common bitrates (128, 192, 256, 320)
+          if (estimatedBitrate <= 160) {
+            originalBitrate = 128;
+          } else if (estimatedBitrate <= 224) {
+            originalBitrate = 192;
+          } else if (estimatedBitrate <= 288) {
+            originalBitrate = 256;
+          } else {
+            originalBitrate = 320;
+          }
+          
+          console.log(`Detected approximate bitrate: ${estimatedBitrate}kbps, using ${originalBitrate}kbps`);
+        } catch (bitrateError) {
+          console.warn('Could not detect bitrate, using default:', originalBitrate);
+        }
+      }
     }
   } catch (error) {
     statusMessageEl.textContent = `Error loading file: ${error.message}`;
@@ -264,16 +302,36 @@ async function processAndSaveAudio(outputFilePath) {
     statusMessageEl.textContent = 'Rendering audio...';
     const renderedBuffer = await offlineContext.startRendering();
     
-    // Convert AudioBuffer to WAV format
-    const wavData = audioBufferToWav(renderedBuffer);
+    // Determine if we should output MP3 or M4A based on the output file extension
+    const isMP3 = outputFilePath.toLowerCase().endsWith('.mp3');
     
-    // Save the file
-    const success = await ipcRenderer.invoke('write-audio-file', outputFilePath, wavData);
-    
-    if (success) {
-      statusMessageEl.textContent = 'File saved successfully!';
+    if (isMP3) {
+      // Convert AudioBuffer to MP3 format
+      statusMessageEl.textContent = 'Encoding to MP3...';
+      const mp3Data = audioBufferToMP3(renderedBuffer);
+      
+      // Save the file
+      const success = await ipcRenderer.invoke('write-audio-file', outputFilePath, mp3Data);
+      
+      if (success) {
+        statusMessageEl.textContent = 'File saved successfully!';
+      } else {
+        statusMessageEl.textContent = 'Error saving file';
+      }
     } else {
-      statusMessageEl.textContent = 'Error saving file';
+      // For now, if it's not MP3, fall back to WAV format
+      // In a future update, we could add M4A encoding
+      statusMessageEl.textContent = 'Encoding to WAV (M4A encoding not yet supported)...';
+      const wavData = audioBufferToWav(renderedBuffer);
+      
+      // Save the file
+      const success = await ipcRenderer.invoke('write-audio-file', outputFilePath, wavData);
+      
+      if (success) {
+        statusMessageEl.textContent = 'File saved successfully!';
+      } else {
+        statusMessageEl.textContent = 'Error saving file';
+      }
     }
   } catch (error) {
     statusMessageEl.textContent = `Error processing audio: ${error.message}`;
@@ -335,6 +393,105 @@ function audioBufferToWav(buffer) {
 function writeString(view, offset, string) {
   for (let i = 0; i < string.length; i++) {
     view.setUint8(offset + i, string.charCodeAt(i));
+  }
+}
+
+// Convert AudioBuffer to MP3 format using @breezystack/lamejs
+function audioBufferToMP3(buffer) {
+  try {
+    console.log('Starting MP3 encoding with @breezystack/lamejs...');
+    
+    // Get info from the buffer
+    const numOfChan = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    
+    console.log('Audio buffer info:', {
+      channels: numOfChan,
+      sampleRate: sampleRate,
+      length: buffer.length,
+      duration: buffer.duration
+    });
+    
+    // Create MP3 encoder using @breezystack/lamejs with the original bitrate
+    console.log(`Using bitrate: ${originalBitrate}kbps`);
+    
+    // The script exposes a global 'lamejs' object
+    console.log('Global lamejs object:', window.lamejs);
+    
+    // Use the global lamejs object that was loaded via script tag
+    const mp3encoder = new window.lamejs.Mp3Encoder(numOfChan, sampleRate, originalBitrate);
+    
+    // Extract channel data
+    const channels = [];
+    for (let i = 0; i < numOfChan; i++) {
+      channels.push(buffer.getChannelData(i));
+    }
+    
+    // Convert float samples to int16 samples
+    const blockSize = 1152; // Must be a multiple of 576 for lamejs
+    const mp3Data = [];
+    
+    // Process the audio in chunks
+    for (let i = 0; i < buffer.length; i += blockSize) {
+      // Create sample arrays for each channel
+      const leftChunk = new Int16Array(blockSize);
+      const rightChunk = numOfChan > 1 ? new Int16Array(blockSize) : null;
+      
+      // Convert samples to int16
+      for (let j = 0; j < blockSize; j++) {
+        if (i + j < buffer.length) {
+          // Left channel
+          const left = Math.max(-1, Math.min(1, channels[0][i + j]));
+          leftChunk[j] = left < 0 ? left * 0x8000 : left * 0x7FFF;
+          
+          // Right channel (if stereo)
+          if (numOfChan > 1 && rightChunk) {
+            const right = Math.max(-1, Math.min(1, channels[1][i + j]));
+            rightChunk[j] = right < 0 ? right * 0x8000 : right * 0x7FFF;
+          }
+        }
+      }
+      
+      // Encode the chunk
+      let mp3buf;
+      if (numOfChan === 1) {
+        mp3buf = mp3encoder.encodeBuffer(leftChunk);
+      } else if (rightChunk) {
+        mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+      }
+      
+      if (mp3buf && mp3buf.length > 0) {
+        mp3Data.push(mp3buf);
+      }
+    }
+    
+    // Finalize the encoding
+    const end = mp3encoder.flush();
+    
+    if (end && end.length > 0) {
+      mp3Data.push(end);
+    }
+    
+    // Combine all chunks into a single buffer
+    let totalLength = 0;
+    for (let i = 0; i < mp3Data.length; i++) {
+      totalLength += mp3Data[i].length;
+    }
+    
+    console.log('MP3 encoding complete. Total encoded data length:', totalLength);
+    
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    for (let i = 0; i < mp3Data.length; i++) {
+      result.set(mp3Data[i], offset);
+      offset += mp3Data[i].length;
+    }
+    
+    return result.buffer;
+  } catch (error) {
+    console.error('Error in MP3 encoding:', error);
+    console.error('Error stack:', error.stack);
+    throw new Error(`MP3 encoding failed: ${error.message}`);
   }
 }
 
