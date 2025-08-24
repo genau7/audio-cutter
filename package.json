@@ -1,0 +1,27 @@
+{
+  "name": "audio-cutter",
+  "version": "1.0.0",
+  "description": "Audio cutter with Waveform Visualization and fade in/out options",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder"
+  },
+  "keywords": [
+    "mp3",
+    "m4a",
+    "audio",
+    "editor",
+    "waveform"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^25.0.0",
+    "electron-builder": "^24.4.0"
+  },
+  "dependencies": {
+    "wavesurfer.js": "^6.6.3"
+  }
+}
