@@ -26,6 +26,7 @@ let introCutTime = 0;
 let outroCutTime = null; // null means end of file
 let isPlaying = false;
 let originalBitrate = 256; // Default bitrate if we can't detect it
+let mp3Tags = null; // Store original MP3 tags
 
 // Initialize WaveSurfer
 function initWaveSurfer() {
@@ -158,6 +159,13 @@ async function loadAudioFile(filePath) {
           }
           
           console.log(`Detected approximate bitrate: ${estimatedBitrate}kbps, using ${originalBitrate}kbps`);
+          
+          // Read MP3 tags
+          mp3Tags = await ipcRenderer.invoke('read-mp3-tags', filePath);
+          if (mp3Tags) {
+            console.log('MP3 tags loaded:', mp3Tags);
+            displayMP3Tags(mp3Tags);
+          }
         } catch (bitrateError) {
           console.warn('Could not detect bitrate, using default:', originalBitrate);
         }
@@ -314,7 +322,27 @@ async function processAndSaveAudio(outputFilePath) {
       const success = await ipcRenderer.invoke('write-audio-file', outputFilePath, mp3Data);
       
       if (success) {
-        statusMessageEl.textContent = 'File saved successfully!';
+        // Apply the original MP3 tags if available
+        if (mp3Tags) {
+          statusMessageEl.textContent = 'Applying MP3 tags...';
+          console.log('Applying MP3 tags to new file:', mp3Tags);
+          
+          try {
+            const tagSuccess = await ipcRenderer.invoke('write-mp3-tags', outputFilePath, mp3Tags);
+            if (tagSuccess) {
+              console.log('MP3 tags applied successfully');
+              statusMessageEl.textContent = 'File saved with original tags!';
+            } else {
+              console.warn('Failed to apply MP3 tags');
+              statusMessageEl.textContent = 'File saved, but failed to apply tags';
+            }
+          } catch (tagError) {
+            console.error('Error applying MP3 tags:', tagError);
+            statusMessageEl.textContent = 'File saved, but error applying tags';
+          }
+        } else {
+          statusMessageEl.textContent = 'File saved successfully!';
+        }
       } else {
         statusMessageEl.textContent = 'Error saving file';
       }
@@ -547,6 +575,45 @@ function setupDragAndDrop() {
       }
     }
   }
+}
+
+// Display MP3 tags in the UI
+function displayMP3Tags(tags) {
+  // Set basic info in status message
+  statusMessageEl.textContent = `Loaded: ${tags.title || 'Unknown'} - ${tags.artist || 'Unknown'}`;
+  
+  // Create a more detailed tag display
+  let tagInfo = '';
+  
+  if (tags.title) tagInfo += `Title: ${tags.title}\n`;
+  if (tags.artist) tagInfo += `Artist: ${tags.artist}\n`;
+  if (tags.album) tagInfo += `Album: ${tags.album}\n`;
+  if (tags.year) tagInfo += `Year: ${tags.year}\n`;
+  if (tags.genre) tagInfo += `Genre: ${tags.genre}\n`;
+  if (tags.trackNumber) tagInfo += `Track: ${tags.trackNumber}\n`;
+  
+  // Add bitrate information
+  tagInfo += `Bitrate: ${originalBitrate}kbps\n`;
+  
+  // Display in console for debugging
+  console.log('MP3 Tag Details:\n' + tagInfo);
+  
+  // You could also add this to a tooltip or a modal if desired
+  // For now, we'll just update the status message on hover
+  const originalStatus = statusMessageEl.textContent;
+  
+  statusMessageEl.addEventListener('mouseenter', () => {
+    if (mp3Tags) {
+      statusMessageEl.textContent = 'MP3 Tags: ' + 
+        (tags.title ? tags.title + ' - ' : '') + 
+        (tags.artist ? tags.artist + ' - ' : '') + 
+        (tags.album ? tags.album + ' (' + (tags.year || '') + ')' : '');
+    }
+  });
+  
+  statusMessageEl.addEventListener('mouseleave', () => {
+    statusMessageEl.textContent = originalStatus;
+  });
 }
 
 // Initialize the application

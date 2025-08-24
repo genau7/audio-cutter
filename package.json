@@ -23,6 +23,7 @@
     "electron-builder": "^24.4.0"
   },
   "dependencies": {
+    "node-id3": "^0.2.9",
     "wavesurfer.js": "^6.6.3"
   }
 }

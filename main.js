@@ -1,6 +1,7 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const NodeID3 = require('node-id3');
 
 let mainWindow;
 
@@ -153,14 +154,33 @@ ipcMain.handle('write-audio-file', async (event, filePath, arrayBuffer) => {
 // Handle getting file stats (for bitrate detection)
 ipcMain.handle('get-file-stats', async (event, filePath) => {
   try {
-    const stats = fs.statSync(filePath);
-    return {
-      size: stats.size,
-      created: stats.birthtime,
-      modified: stats.mtime
-    };
+    return fs.promises.stat(filePath);
   } catch (error) {
     console.error('Error getting file stats:', error);
     return null;
+  }
+});
+
+// Read MP3 tags
+ipcMain.handle('read-mp3-tags', async (event, filePath) => {
+  try {
+    const tags = NodeID3.read(filePath);
+    console.log('Read MP3 tags:', tags);
+    return tags;
+  } catch (error) {
+    console.error('Error reading MP3 tags:', error);
+    return null;
+  }
+});
+
+// Write MP3 tags
+ipcMain.handle('write-mp3-tags', async (event, filePath, tags) => {
+  try {
+    const success = NodeID3.write(tags, filePath);
+    console.log('Wrote MP3 tags:', success ? 'success' : 'failed');
+    return success;
+  } catch (error) {
+    console.error('Error writing MP3 tags:', error);
+    return false;
   }
 });
