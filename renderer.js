@@ -16,6 +16,7 @@ const setIntroBtn = document.getElementById('set-intro');
 const setOutroBtn = document.getElementById('set-outro');
 const fadeInInput = document.getElementById('fade-in');
 const fadeOutInput = document.getElementById('fade-out');
+const loadingOverlay = document.getElementById('loading-overlay');
 
 // Global variables
 let wavesurfer;
@@ -264,9 +265,29 @@ function saveEditedFile() {
   ipcRenderer.send('save-file-dialog', originalFilename);
 }
 
+// Toggle loading state
+function setSaveLoadingState(isLoading) {
+  if (isLoading) {
+    loadingOverlay.classList.add('active');
+    saveFileBtn.disabled = true;
+  } else {
+    loadingOverlay.classList.remove('active');
+    saveFileBtn.disabled = false;
+    statusMessageEl.classList.remove('status-loading');
+  }
+}
+
 // Process and save audio
 async function processAndSaveAudio(outputFilePath) {
   try {
+    // If user canceled the save dialog, don't do anything
+    if (!outputFilePath) {
+      statusMessageEl.textContent = 'Save canceled';
+      return;
+    }
+    
+    // Show loading state now that user has submitted the filename
+    setSaveLoadingState(true);
     statusMessageEl.textContent = 'Processing audio...';
     
     // Get cut points and fade values
@@ -364,6 +385,8 @@ async function processAndSaveAudio(outputFilePath) {
   } catch (error) {
     statusMessageEl.textContent = `Error processing audio: ${error.message}`;
     console.error('Error processing audio:', error);
+  } finally {
+    setSaveLoadingState(false);
   }
 }
 
