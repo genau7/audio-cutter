@@ -87,6 +87,23 @@ function setupEventListeners() {
 
   // Save file button
   saveFileBtn.addEventListener('click', saveEditedFile);
+  
+  // Auto-select content on focus for all input fields
+  fadeInInput.addEventListener('focus', function() {
+    this.select();
+  });
+  
+  fadeOutInput.addEventListener('focus', function() {
+    this.select();
+  });
+  
+  introCutInput.addEventListener('focus', function() {
+    this.select();
+  });
+  
+  outroCutInput.addEventListener('focus', function() {
+    this.select();
+  });
 
   // Set intro cut point
   setIntroBtn.addEventListener('click', () => {
