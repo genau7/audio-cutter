@@ -20,6 +20,11 @@ const fadeOutInput = document.getElementById('fade-out');
 const snapToIntroBtn = document.getElementById('snap-to-intro');
 const snapToOutroBtn = document.getElementById('snap-to-outro');
 const loadingOverlay = document.getElementById('loading-overlay');
+// Tag input elements
+const tagArtistInput = document.getElementById('tag-artist');
+const tagTitleInput = document.getElementById('tag-title');
+const tagAlbumInput = document.getElementById('tag-album');
+const tagYearInput = document.getElementById('tag-year');
 
 // Global variables
 let wavesurfer;
@@ -103,20 +108,26 @@ function setupEventListeners() {
   saveFileBtn.addEventListener('click', saveEditedFile);
   
   // Auto-select content on focus for all input fields
-  fadeInInput.addEventListener('focus', function() {
-    this.select();
-  });
+  const inputFields = [
+    fadeInInput, fadeOutInput, introCutInput, outroCutInput,
+    tagArtistInput, tagTitleInput, tagAlbumInput, tagYearInput
+  ];
   
-  fadeOutInput.addEventListener('focus', function() {
-    this.select();
-  });
-  
-  introCutInput.addEventListener('focus', function() {
-    this.select();
-  });
-  
-  outroCutInput.addEventListener('focus', function() {
-    this.select();
+  // Add focus and keydown event listeners to all input fields
+  inputFields.forEach(input => {
+    // Select all text on focus
+    input.addEventListener('focus', function() {
+      this.select();
+    });
+    
+    // Handle cmd+A (or ctrl+A) to select all text
+    input.addEventListener('keydown', function(e) {
+      // Check for cmd+A (Mac) or ctrl+A (Windows/Linux)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        e.preventDefault(); // Prevent default browser behavior
+        this.select();      // Select all text in the input field
+      }
+    });
   });
   
   // Snap to cut point buttons
@@ -320,6 +331,11 @@ function enableControls() {
   setOutroBtn.disabled = false;
   fadeInInput.disabled = false;
   fadeOutInput.disabled = false;
+  // Enable tag input fields
+  tagArtistInput.disabled = false;
+  tagTitleInput.disabled = false;
+  tagAlbumInput.disabled = false;
+  tagYearInput.disabled = false;
 }
 
 // Update current time display
@@ -470,10 +486,21 @@ async function processAndSaveAudio(outputFilePath) {
           console.log('Applying MP3 tags to new file:', mp3Tags);
           
           try {
-            const tagSuccess = await ipcRenderer.invoke('write-mp3-tags', outputFilePath, mp3Tags);
+            // Get values from tag input fields
+            const updatedTags = {
+              ...mp3Tags,
+              title: tagTitleInput.value || mp3Tags.title,
+              artist: tagArtistInput.value || mp3Tags.artist,
+              album: tagAlbumInput.value || mp3Tags.album,
+              year: tagYearInput.value || mp3Tags.year
+            };
+            
+            console.log('Applying updated MP3 tags:', updatedTags);
+            
+            const tagSuccess = await ipcRenderer.invoke('write-mp3-tags', outputFilePath, updatedTags);
             if (tagSuccess) {
               console.log('MP3 tags applied successfully');
-              statusMessageEl.textContent = 'File saved with original tags!';
+              statusMessageEl.textContent = 'File saved with updated tags!';
             } else {
               console.warn('Failed to apply MP3 tags');
               statusMessageEl.textContent = 'File saved, but failed to apply tags';
@@ -741,6 +768,12 @@ function displayMP3Tags(tags) {
   
   // Display in console for debugging
   console.log('MP3 Tag Details:\n' + tagInfo);
+  
+  // Populate tag input fields
+  tagTitleInput.value = tags.title || '';
+  tagArtistInput.value = tags.artist || '';
+  tagAlbumInput.value = tags.album || '';
+  tagYearInput.value = tags.year || '';
   
   // You could also add this to a tooltip or a modal if desired
   // For now, we'll just update the status message on hover
