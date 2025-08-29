@@ -3,6 +3,7 @@ const WaveSurfer = require('wavesurfer.js');
 
 // DOM Elements
 const waveformEl = document.getElementById('waveform');
+const waveformContainer = document.querySelector('.waveform-container');
 const playPauseBtn = document.getElementById('play-pause');
 const openFileBtn = document.getElementById('open-file');
 const saveFileBtn = document.getElementById('save-file');
@@ -16,6 +17,8 @@ const setIntroBtn = document.getElementById('set-intro');
 const setOutroBtn = document.getElementById('set-outro');
 const fadeInInput = document.getElementById('fade-in');
 const fadeOutInput = document.getElementById('fade-out');
+const snapToIntroBtn = document.getElementById('snap-to-intro');
+const snapToOutroBtn = document.getElementById('snap-to-outro');
 const loadingOverlay = document.getElementById('loading-overlay');
 
 // Global variables
@@ -26,6 +29,8 @@ let currentFilePath;
 let introCutTime = 0;
 let outroCutTime = null; // null means end of file
 let isPlaying = false;
+let introMarkerElement = null;
+let outroMarkerElement = null;
 let originalBitrate = 256; // Default bitrate if we can't detect it
 let mp3Tags = null; // Store original MP3 tags
 
@@ -50,6 +55,15 @@ function initWaveSurfer() {
     enableControls();
     updateTotalTime();
     statusMessageEl.textContent = 'File loaded successfully';
+    
+    // Initialize cut points
+    introCutTime = 0;
+    outroCutTime = wavesurfer.getDuration();
+    
+    // Wait a moment for the waveform to render completely before adding markers
+    setTimeout(() => {
+      updateCutMarkers();
+    }, 100);
   });
 
   wavesurfer.on('audioprocess', () => {
@@ -104,12 +118,26 @@ function setupEventListeners() {
   outroCutInput.addEventListener('focus', function() {
     this.select();
   });
+  
+  // Snap to cut point buttons
+  snapToIntroBtn.addEventListener('click', () => {
+    if (introCutTime !== null) {
+      snapToCutPoint(introCutTime);
+    }
+  });
+  
+  snapToOutroBtn.addEventListener('click', () => {
+    if (outroCutTime !== null) {
+      snapToCutPoint(outroCutTime);
+    }
+  });
 
   // Set intro cut point
   setIntroBtn.addEventListener('click', () => {
     introCutTime = wavesurfer.getCurrentTime();
     introCutInput.value = formatTime(introCutTime, true);
     statusMessageEl.textContent = `Intro cut point set at ${formatTime(introCutTime)}`;
+    updateCutMarkers();
   });
 
   // Set outro cut point
@@ -117,7 +145,65 @@ function setupEventListeners() {
     outroCutTime = wavesurfer.getCurrentTime();
     outroCutInput.value = formatTime(outroCutTime, true);
     statusMessageEl.textContent = `Outro cut point set at ${formatTime(outroCutTime)}`;
+    updateCutMarkers();
   });
+
+  // Create or update cut point markers in the waveform
+  function updateCutMarkers() {
+    const duration = wavesurfer.getDuration();
+    const waveformRect = waveformEl.getBoundingClientRect();
+    const containerRect = waveformContainer.getBoundingClientRect();
+    
+    // Calculate the offset and width of the actual waveform within the container
+    const waveformOffset = waveformRect.left - containerRect.left;
+    const waveformWidth = waveformRect.width;
+  
+    // Create or update intro marker
+    if (introCutTime !== null && introCutTime >= 0) {
+      // Calculate position in pixels based on time and waveform width
+      const introPixelPosition = (introCutTime / duration) * waveformWidth + waveformOffset;
+      // Convert to percentage of container width
+      const introPosition = (introPixelPosition / containerRect.width) * 100;
+    
+      if (!introMarkerElement) {
+        introMarkerElement = document.createElement('div');
+        introMarkerElement.className = 'cut-marker intro-marker';
+        introMarkerElement.title = 'Intro Cut Point';
+        introMarkerElement.addEventListener('click', () => snapToCutPoint(introCutTime));
+        waveformContainer.appendChild(introMarkerElement);
+      }
+    
+      introMarkerElement.style.left = `${introPosition}%`;
+      snapToIntroBtn.disabled = false;
+    }
+  
+    // Create or update outro marker
+    if (outroCutTime !== null) {
+      // Calculate position in pixels based on time and waveform width
+      const outroPixelPosition = (outroCutTime / duration) * waveformWidth + waveformOffset;
+      // Convert to percentage of container width
+      const outroPosition = (outroPixelPosition / containerRect.width) * 100;
+    
+      if (!outroMarkerElement) {
+        outroMarkerElement = document.createElement('div');
+        outroMarkerElement.className = 'cut-marker outro-marker';
+        outroMarkerElement.title = 'Outro Cut Point';
+        outroMarkerElement.addEventListener('click', () => snapToCutPoint(outroCutTime));
+        waveformContainer.appendChild(outroMarkerElement);
+      }
+    
+      outroMarkerElement.style.left = `${outroPosition}%`;
+      snapToOutroBtn.disabled = false;
+    }
+  }
+
+  // Snap to a specific time point
+  function snapToCutPoint(timePoint) {
+    if (timePoint !== null && wavesurfer) {
+      wavesurfer.seekTo(timePoint / wavesurfer.getDuration());
+      statusMessageEl.textContent = `Jumped to ${formatTime(timePoint)}`;
+    }
+  }
 
   // Listen for file open event from main process
   ipcRenderer.on('file-opened', (event, filePath) => {
@@ -133,6 +219,24 @@ function setupEventListeners() {
 // Load audio file
 async function loadAudioFile(filePath) {
   try {
+    // Reset markers and cut points
+    introCutTime = 0;
+    outroCutTime = null;
+    
+    // Remove existing markers if any
+    if (introMarkerElement) {
+      introMarkerElement.remove();
+      introMarkerElement = null;
+    }
+    if (outroMarkerElement) {
+      outroMarkerElement.remove();
+      outroMarkerElement = null;
+    }
+    
+    // Disable snap buttons
+    snapToIntroBtn.disabled = true;
+    snapToOutroBtn.disabled = true;
+    
     currentFilePath = filePath;
     fileNameEl.textContent = filePath.split('/').pop();
     statusMessageEl.textContent = 'Loading file...';

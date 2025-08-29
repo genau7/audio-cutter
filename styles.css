@@ -257,3 +257,57 @@ h3 {
   animation: spin 1s ease-in-out infinite;
   margin-right: 8px;
 }
+
+/* Cut point markers */
+.cut-marker {
+  position: absolute;
+  top: 20px; /* Account for padding in waveform container */
+  width: 3px;
+  height: calc(100% - 40px); /* Account for padding in waveform container */
+  z-index: 10;
+  cursor: pointer;
+  pointer-events: all;
+  transform: translateX(-50%); /* Center the marker on the exact position */
+}
+
+.intro-marker {
+  background-color: rgba(74, 144, 226, 0.8);
+}
+
+.outro-marker {
+  background-color: rgba(240, 52, 52, 0.8);
+}
+
+.cut-marker::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+  transform: translateX(-50%); /* Center the handle on the marker */
+}
+
+.intro-marker::after {
+  background-color: #4a90e2;
+}
+
+.outro-marker::after {
+  background-color: #f03434;
+}
+
+/* Snap buttons */
+.snap-btn {
+  background: none;
+  border: none;
+  color: #4a90e2;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 5px;
+}
+
+.snap-btn:hover {
+  color: #357abd;
+}
