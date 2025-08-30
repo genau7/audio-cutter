@@ -311,3 +311,38 @@ h3 {
 .snap-btn:hover {
   color: #357abd;
 }
+
+/* Search button styles */
+.search-group {
+  margin-top: 15px;
+}
+
+#search-tags {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-left: 100px; /* Match the label width */
+  margin-right: 6px /* Match with tag inputs padding */
+}
+
+.search-icon {
+  font-size: 14px;
+}
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s ease-in-out infinite;
+  margin-right: 5px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

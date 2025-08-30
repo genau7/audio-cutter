@@ -25,6 +25,7 @@ const tagArtistInput = document.getElementById('tag-artist');
 const tagTitleInput = document.getElementById('tag-title');
 const tagAlbumInput = document.getElementById('tag-album');
 const tagYearInput = document.getElementById('tag-year');
+const searchTagsBtn = document.getElementById('search-tags');
 
 // Global variables
 let wavesurfer;
@@ -129,6 +130,9 @@ function setupEventListeners() {
       }
     });
   });
+  
+  // Add search button event listener
+  searchTagsBtn.addEventListener('click', searchForAlbumInfo);
   
   // Snap to cut point buttons
   snapToIntroBtn.addEventListener('click', () => {
@@ -336,6 +340,7 @@ function enableControls() {
   tagTitleInput.disabled = false;
   tagAlbumInput.disabled = false;
   tagYearInput.disabled = false;
+  searchTagsBtn.disabled = false;
 }
 
 // Update current time display
@@ -791,6 +796,56 @@ function displayMP3Tags(tags) {
   statusMessageEl.addEventListener('mouseleave', () => {
     statusMessageEl.textContent = originalStatus;
   });
+}
+
+// Search for album and year information using artist and title
+async function searchForAlbumInfo() {
+  // Get artist and title values
+  const artist = tagArtistInput.value.trim();
+  const title = tagTitleInput.value.trim();
+  
+  if (!artist || !title) {
+    statusMessageEl.textContent = 'Please enter both artist and title to search';
+    return;
+  }
+  
+  // Show loading state
+  const originalButtonText = searchTagsBtn.innerHTML;
+  searchTagsBtn.innerHTML = '<span class="spinner"></span> Searching...';
+  searchTagsBtn.disabled = true;
+  statusMessageEl.textContent = 'Searching for album information...';
+  
+  try {
+    // Send search request to main process with artist and title
+    const searchResults = await ipcRenderer.invoke('search-web', { artist, title });
+    console.log('Last.fm API results:', searchResults);
+    
+    if (searchResults && searchResults.success) {
+      // Update the fields if information was found
+      if (searchResults.album) {
+        tagAlbumInput.value = searchResults.album;
+        statusMessageEl.textContent = 'Album information found!';
+      }
+      
+      if (searchResults.year) {
+        tagYearInput.value = searchResults.year;
+        statusMessageEl.textContent = 'Album and year information found!';
+      }
+      
+      if (!searchResults.album && !searchResults.year) {
+        statusMessageEl.textContent = 'Could not find album information. Try refining the search.';
+      }
+    } else {
+      statusMessageEl.textContent = `Search failed: ${searchResults.error || 'Please try again'}`;
+    }
+  } catch (error) {
+    console.error('Error searching for album info:', error);
+    statusMessageEl.textContent = `Search error: ${error.message}`;
+  } finally {
+    // Restore button state
+    searchTagsBtn.innerHTML = originalButtonText;
+    searchTagsBtn.disabled = false;
+  }
 }
 
 // Initialize the application
