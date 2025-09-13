@@ -261,6 +261,24 @@ async function loadAudioFile(filePath) {
     snapToIntroBtn.disabled = true;
     snapToOutroBtn.disabled = true;
     
+    // Reset all input fields
+    fadeInInput.value = '0';
+    fadeOutInput.value = '0';
+    introCutInput.value = '0:00.000';
+    outroCutInput.value = '';
+    
+    // Reset tag input fields
+    tagArtistInput.value = '';
+    tagTitleInput.value = '';
+    tagAlbumInput.value = '';
+    tagYearInput.value = '';
+    
+    // Remove any auto-populated highlights
+    tagArtistInput.classList.remove('auto-populated');
+    tagTitleInput.classList.remove('auto-populated');
+    tagAlbumInput.classList.remove('auto-populated');
+    tagYearInput.classList.remove('auto-populated');
+    
     currentFilePath = filePath;
     fileNameEl.textContent = filePath.split('/').pop();
     statusMessageEl.textContent = 'Loading file...';
