@@ -27,6 +27,8 @@ const tagTitleInput = document.getElementById('tag-title');
 const tagAlbumInput = document.getElementById('tag-album');
 const tagYearInput = document.getElementById('tag-year');
 const searchTagsBtn = document.getElementById('search-tags');
+const saveTagsBtn = document.getElementById('save-tags');
+const parseFilenameBtn = document.getElementById('parse-filename');
 
 // Global variables
 let wavesurfer;
@@ -134,6 +136,12 @@ function setupEventListeners() {
   
   // Add search button event listener
   searchTagsBtn.addEventListener('click', searchForAlbumInfo);
+  
+  // Add save tags button event listener
+  saveTagsBtn.addEventListener('click', saveTagsOnly);
+  
+  // Add parse filename button event listener
+  parseFilenameBtn.addEventListener('click', parseFilenameAndApply);
   
   // Snap to cut point buttons
   snapToIntroBtn.addEventListener('click', () => {
@@ -343,6 +351,13 @@ function enableControls() {
   tagAlbumInput.disabled = false;
   tagYearInput.disabled = false;
   searchTagsBtn.disabled = false;
+  
+  // Enable save tags and parse filename buttons only for MP3 files
+  if (currentFilePath) {
+    const fileExt = currentFilePath.split('.').pop().toLowerCase();
+    saveTagsBtn.disabled = fileExt !== 'mp3';
+    parseFilenameBtn.disabled = fileExt !== 'mp3';
+  }
 }
 
 // Update current time display
@@ -762,8 +777,57 @@ function setupDragAndDrop() {
   }
 }
 
+// Parse filename to extract artist and title
+function parseFilenameForTags(filename) {
+  // Remove file extension
+  const nameWithoutExt = filename.replace(/\.[^\.]+$/, '');
+  
+  // Remove content in brackets including the space before brackets
+  const nameWithoutBrackets = nameWithoutExt.replace(/\s*\([^\)]*\)/g, '').replace(/\s*\[[^\]]*\]/g, '');
+  
+  // Default values
+  let parsedInfo = {
+    artist: '',
+    title: nameWithoutBrackets.trim() // Default to full filename as title
+  };
+  
+  // Check if the filename contains the artist - title separator
+  if (nameWithoutBrackets.includes(' - ')) {
+    const parts = nameWithoutBrackets.split(' - ');
+    if (parts.length >= 2) {
+      parsedInfo.artist = parts[0].trim();
+      parsedInfo.title = parts[1].trim();
+    }
+  }
+  
+  console.log('Parsed filename tags:', parsedInfo);
+  return parsedInfo;
+}
+
 // Display MP3 tags in the UI
 function displayMP3Tags(tags) {
+  // Store original tags to track which ones were auto-populated
+  const originalTags = { ...tags };
+  
+  // Check if tags are missing (title or artist)
+  let parsedTags = null;
+  if (!tags.title || !tags.artist) {
+    // If any tags are missing, try to parse the filename
+    const filename = currentFilePath.split('/').pop();
+    parsedTags = parseFilenameForTags(filename);
+    
+    // Update the tags with parsed information
+    if (!tags.title && parsedTags.title) {
+      tags.title = parsedTags.title;
+    }
+    
+    if (!tags.artist && parsedTags.artist) {
+      tags.artist = parsedTags.artist;
+    }
+    
+    console.log('Some tags were missing, populated from filename:', tags);
+  }
+  
   // Set basic info in status message
   statusMessageEl.textContent = `Loaded: ${tags.title || 'Unknown'} - ${tags.artist || 'Unknown'}`;
   
@@ -783,11 +847,41 @@ function displayMP3Tags(tags) {
   // Display in console for debugging
   console.log('MP3 Tag Details:\n' + tagInfo);
   
-  // Populate tag input fields
+  // Populate tag input fields and highlight auto-populated fields
   tagTitleInput.value = tags.title || '';
+  if (originalTags.title !== tags.title && tags.title) {
+    tagTitleInput.classList.add('auto-populated');
+  } else {
+    tagTitleInput.classList.remove('auto-populated');
+  }
+  
   tagArtistInput.value = tags.artist || '';
+  if (originalTags.artist !== tags.artist && tags.artist) {
+    tagArtistInput.classList.add('auto-populated');
+  } else {
+    tagArtistInput.classList.remove('auto-populated');
+  }
+  
   tagAlbumInput.value = tags.album || '';
+  if (originalTags.album !== tags.album && tags.album) {
+    tagAlbumInput.classList.add('auto-populated');
+  } else {
+    tagAlbumInput.classList.remove('auto-populated');
+  }
+  
   tagYearInput.value = tags.year || '';
+  if (originalTags.year !== tags.year && tags.year) {
+    tagYearInput.classList.add('auto-populated');
+  } else {
+    tagYearInput.classList.remove('auto-populated');
+  }
+  
+  // Enable save tags button if we loaded an MP3 file
+  const fileExt = currentFilePath.split('.').pop().toLowerCase();
+  const saveTagsBtn = document.getElementById('save-tags');
+  if (saveTagsBtn) {
+    saveTagsBtn.disabled = fileExt !== 'mp3';
+  }
   
   // You could also add this to a tooltip or a modal if desired
   // For now, we'll just update the status message on hover
@@ -832,13 +926,29 @@ async function searchForAlbumInfo() {
     if (searchResults && searchResults.success) {
       // Update the fields if information was found
       if (searchResults.album) {
+        // Store original value to check if it changed
+        const originalAlbum = tagAlbumInput.value;
+        
         tagAlbumInput.value = searchResults.album;
         statusMessageEl.textContent = 'Album information found!';
+        
+        // Highlight if the value changed
+        if (originalAlbum !== searchResults.album) {
+          tagAlbumInput.classList.add('auto-populated');
+        }
       }
       
       if (searchResults.year) {
+        // Store original value to check if it changed
+        const originalYear = tagYearInput.value;
+        
         tagYearInput.value = searchResults.year;
         statusMessageEl.textContent = 'Album and year information found!';
+        
+        // Highlight if the value changed
+        if (originalYear !== searchResults.year) {
+          tagYearInput.classList.add('auto-populated');
+        }
       }
       
       if (!searchResults.album && !searchResults.year) {
@@ -854,6 +964,125 @@ async function searchForAlbumInfo() {
     // Restore button state
     searchTagsBtn.innerHTML = originalButtonText;
     searchTagsBtn.disabled = false;
+  }
+}
+
+// Parse the filename and apply extracted tags to the fields
+function parseFilenameAndApply() {
+  if (!currentFilePath) {
+    statusMessageEl.textContent = 'No file loaded';
+    return;
+  }
+  
+  // Get the filename from the current path
+  const filename = currentFilePath.split('/').pop();
+  
+  // Parse the filename
+  const parsedTags = parseFilenameForTags(filename);
+  
+  // Show what was extracted in status message
+  statusMessageEl.textContent = `Parsed: ${parsedTags.artist ? parsedTags.artist + ' - ' : ''}${parsedTags.title}`;
+  
+  // Store original values to detect changes for highlighting
+  const originalArtist = tagArtistInput.value;
+  const originalTitle = tagTitleInput.value;
+  
+  // Update the input fields with the parsed values
+  if (parsedTags.title) {
+    tagTitleInput.value = parsedTags.title;
+    if (originalTitle !== parsedTags.title) {
+      tagTitleInput.classList.add('auto-populated');
+    }
+  }
+  
+  if (parsedTags.artist) {
+    tagArtistInput.value = parsedTags.artist;
+    if (originalArtist !== parsedTags.artist) {
+      tagArtistInput.classList.add('auto-populated');
+    }
+  }
+  
+  console.log('Manually parsed filename into tags:', parsedTags);
+}
+
+// Save only the tags without modifying audio content
+async function saveTagsOnly() {
+  // Check if we have a file path and it's an MP3
+  if (!currentFilePath || !currentFilePath.toLowerCase().endsWith('.mp3')) {
+    statusMessageEl.textContent = 'Only MP3 files support tag editing';
+    return;
+  }
+  
+  // Show loading state
+  const originalButtonText = saveTagsBtn.innerHTML;
+  saveTagsBtn.innerHTML = '<span class="spinner"></span> Saving...';
+  saveTagsBtn.disabled = true;
+  statusMessageEl.textContent = 'Saving MP3 tags...';
+  
+  try {
+    // Gather tag values from input fields
+    const updatedTags = {
+      ...mp3Tags, // Keep any other existing tags
+      title: tagTitleInput.value || mp3Tags.title,
+      artist: tagArtistInput.value || mp3Tags.artist,
+      album: tagAlbumInput.value || mp3Tags.album,
+      year: tagYearInput.value || mp3Tags.year
+    };
+    
+    console.log('Saving tags only:', updatedTags);
+    
+    // Call the main process to write the MP3 tags
+    const tagSuccess = await ipcRenderer.invoke('write-mp3-tags', currentFilePath, updatedTags);
+    
+    if (tagSuccess) {
+      statusMessageEl.textContent = 'Tags saved successfully!';
+      
+      // Store the original tags for comparison
+      const originalTags = { ...mp3Tags };
+      
+      // Update mp3Tags with new values
+      mp3Tags = updatedTags;
+      
+      // Maintain the auto-populated highlighting for fields that differ from original file tags
+      // instead of removing them when saved
+      
+      // Title field
+      if (tagTitleInput.value !== originalTags.title) {
+        tagTitleInput.classList.add('auto-populated');
+      } else {
+        tagTitleInput.classList.remove('auto-populated');
+      }
+      
+      // Artist field
+      if (tagArtistInput.value !== originalTags.artist) {
+        tagArtistInput.classList.add('auto-populated');
+      } else {
+        tagArtistInput.classList.remove('auto-populated');
+      }
+      
+      // Album field
+      if (tagAlbumInput.value !== originalTags.album) {
+        tagAlbumInput.classList.add('auto-populated');
+      } else {
+        tagAlbumInput.classList.remove('auto-populated');
+      }
+      
+      // Year field
+      if (tagYearInput.value !== originalTags.year) {
+        tagYearInput.classList.add('auto-populated');
+      } else {
+        tagYearInput.classList.remove('auto-populated');
+      }
+    } else {
+      statusMessageEl.textContent = 'Failed to save tags';
+    }
+  } catch (error) {
+    console.error('Error saving tags:', error);
+    statusMessageEl.textContent = `Error saving tags: ${error.message}`;
+  } finally {
+    // Restore button state
+    saveTagsBtn.innerHTML = originalButtonText;
+    saveTagsBtn.disabled = false;
   }
 }
 

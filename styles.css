@@ -331,11 +331,11 @@ h3 {
 }
 
 /* Search button styles */
-.search-group {
+.search-group, .save-group, .parse-group {
   margin-top: 15px;
 }
 
-#search-tags {
+#search-tags, #save-tags, #parse-filename {
   width: 100%;
   display: flex;
   align-items: center;
@@ -343,6 +343,34 @@ h3 {
   gap: 5px;
   margin-left: 100px; /* Match the label width */
   margin-right: 6px /* Match with tag inputs padding */
+}
+
+.save-group, .parse-group {
+  margin-top: 10px;
+}
+
+/* Parse filename button */
+.parse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  background-color: #FF9800; /* Orange color */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 5px;
+}
+
+.parse-btn:hover {
+  background-color: #F57C00;
+}
+
+.parse-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }
 
 .search-icon {
@@ -363,4 +391,38 @@ h3 {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Auto-populated tags */
+.auto-populated {
+  background-color: #fff7c6; /* Light yellow background */
+  border-color: #ffd54f !important;
+}
+
+/* Save tags button */
+.tag-save-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 5px;
+}
+
+.tag-save-btn:hover {
+  background-color: #3e8e41;
+}
+
+.tag-save-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.tag-save-btn .save-icon {
+  margin-right: 5px;
 }
