@@ -20,6 +20,7 @@ const fadeOutInput = document.getElementById('fade-out');
 const snapToIntroBtn = document.getElementById('snap-to-intro');
 const snapToOutroBtn = document.getElementById('snap-to-outro');
 const loadingOverlay = document.getElementById('loading-overlay');
+const overrideOriginalCheckbox = document.getElementById('override-original');
 // Tag input elements
 const tagArtistInput = document.getElementById('tag-artist');
 const tagTitleInput = document.getElementById('tag-title');
@@ -335,6 +336,7 @@ function enableControls() {
   setOutroBtn.disabled = false;
   fadeInInput.disabled = false;
   fadeOutInput.disabled = false;
+  overrideOriginalCheckbox.disabled = false;
   // Enable tag input fields
   tagArtistInput.disabled = false;
   tagTitleInput.disabled = false;
@@ -395,6 +397,13 @@ function parseTimeToSeconds(timeString) {
 // Save edited file
 function saveEditedFile() {
   statusMessageEl.textContent = 'Preparing to save...';
+  
+  // Check if user wants to override the original file
+  if (overrideOriginalCheckbox.checked && currentFilePath) {
+    // Skip the save dialog and directly use the original file path
+    processAndSaveAudio(currentFilePath);
+    return;
+  }
   
   // Get the original filename without extension
   let originalFilename = '';
@@ -818,7 +827,7 @@ async function searchForAlbumInfo() {
   try {
     // Send search request to main process with artist and title
     const searchResults = await ipcRenderer.invoke('search-web', { artist, title });
-    console.log('Last.fm API results:', searchResults);
+    console.log('MusicBrainz API results:', searchResults);
     
     if (searchResults && searchResults.success) {
       // Update the fields if information was found
